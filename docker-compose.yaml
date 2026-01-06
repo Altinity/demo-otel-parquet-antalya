@@ -1,0 +1,116 @@
+services:
+  rustfs:
+    image: rustfs/rustfs:latest
+    restart: unless-stopped
+    environment:
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: '0.0.0.0:9000'
+      RUSTFS_CONSOLE_ADDRESS: '0.0.0.0:9001'
+      RUSTFS_CONSOLE_ENABLE: 'true'
+      RUSTFS_ACCESS_KEY: rustfsuser
+      RUSTFS_SECRET_KEY: rustfspassword
+    ports:
+      - '8999:9000' # 9000 is taken by clickhouse, map to 8999
+      - '9001:9001' # web console
+    volumes:
+      - rustfs:/data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  rustfs-init:
+    image: minio/mc:latest
+    restart: on-failure  # run once and exit
+    entrypoint: >
+      /bin/sh -c "
+      sleep 2;
+      until mc alias set local http://rustfs:9000 $$RUSTFS_ACCESS_KEY $$RUSTFS_SECRET_KEY; do echo waiting for rustfs...; sleep 1; done;
+      mc mb --ignore-existing local/bucket1;
+      exit 0;
+      "
+    environment:
+      RUSTFS_ACCESS_KEY: rustfsuser
+      RUSTFS_SECRET_KEY: rustfspassword
+    depends_on:
+      rustfs:
+        condition: service_healthy
+  ice-rest-catalog:
+    image: altinity/ice-rest-catalog:${ICE_REST_CATALOG_TAG:-latest}
+    pull_policy: ${ICE_REST_CATALOG_PULL_POLICY:-always}
+    restart: unless-stopped
+    ports:
+      - '5001:5000' # iceberg/http
+    configs:
+      - source: ice-rest-catalog-yaml
+        target: /etc/ice/ice-rest-catalog.yaml
+    volumes:
+      # for access to /var/lib/ice-rest-catalog/db.sqlite
+      - ./data/docker-compose/ice-rest-catalog/var/lib/ice-rest-catalog:/var/lib/ice-rest-catalog
+    depends_on:
+      - rustfs-init
+  clickhouse:
+    image: altinity/clickhouse-server:25.3.3.20186.altinityantalya-alpine
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_SKIP_USER_SETUP: "1" # insecure
+    ports:
+      - "8123:8123" # clickhouse/http
+      - "9000:9000" # clickhouse/native
+    configs:
+      - source: clickhouse-init
+        target: /docker-entrypoint-initdb.d/init-db.sh
+    volumes:
+      # for access to clickhouse-logs
+      - ./data/docker-compose/clickhouse/var/log/clickhouse-server:/var/log/clickhouse-server
+    depends_on:
+      - ice-rest-catalog
+  ice:
+    image: altinity/ice:${ICE_TAG:-latest}
+    pull_policy: ${ICE_PULL_POLICY:-always}
+    configs:
+      - source: ice-yaml
+        target: /app/.ice.yaml
+    working_dir: /app
+    depends_on:
+      - ice-rest-catalog
+    profiles:
+      - tools
+configs:
+  clickhouse-init:
+    content: |
+      #!/bin/bash
+      exec clickhouse client --query $"
+        SET allow_experimental_database_iceberg = 1;
+
+        DROP DATABASE IF EXISTS ice;
+
+        CREATE DATABASE ice
+          ENGINE = DataLakeCatalog('http://ice-rest-catalog:5000')
+          SETTINGS catalog_type = 'rest',
+            auth_header = 'Authorization: Bearer foo',
+            storage_endpoint = 'http://rustfs:9000',
+            warehouse = 's3://bucket1';
+      "
+  ice-rest-catalog-yaml:
+    content: |
+      uri: jdbc:sqlite:file:/var/lib/ice-rest-catalog/db.sqlite?journal_mode=WAL&synchronous=OFF&journal_size_limit=500
+      warehouse: s3://bucket1
+      s3:
+        endpoint: http://rustfs:9000
+        pathStyleAccess: true
+        accessKeyID: rustfsuser
+        secretAccessKey: rustfspassword
+        region: rustfs
+      bearerTokens:
+        - value: foo
+  ice-yaml:
+    content: |
+      uri: http://ice-rest-catalog:5000
+      bearerToken: foo
+      s3:
+        endpoint: http://rustfs:9000
+        accessKeyID: rustfsuser
+        secretAccessKey: rustfspassword
+volumes:
+  rustfs:
