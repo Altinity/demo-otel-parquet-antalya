@@ -94,17 +94,11 @@ configs:
   clickhouse-init:
     content: |
       #!/bin/bash
-      exec clickhouse client --query $"
-        SET allow_experimental_database_iceberg = 1;
-
-        DROP DATABASE IF EXISTS ice;
-
-        CREATE DATABASE ice
-          ENGINE = DataLakeCatalog('http://ice-rest-catalog:5000')
-          SETTINGS catalog_type = 'rest',
-            storage_endpoint = 'http://rustfs:9000',
-            warehouse = 's3://bucket1';
-      "
+      clickhouse client --query "
+        CREATE OR REPLACE VIEW otel_logs AS
+        SELECT * FROM s3('http://rustfs:9000/bucket1/otlp/otel_logs/data/*.parquet', 'rustfsuser', 'rustfspassword', 'Parquet');
+      " || true
+      echo "ClickHouse initialized (otel_logs view will work once data is ingested)"
   ice-rest-catalog-yaml:
     content: |
       uri: jdbc:sqlite:file:/var/lib/ice-rest-catalog/db.sqlite?journal_mode=WAL&synchronous=OFF&journal_size_limit=500
