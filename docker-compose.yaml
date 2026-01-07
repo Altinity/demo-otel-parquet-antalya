@@ -36,21 +36,19 @@ services:
       rustfs:
         condition: service_healthy
   ice-rest-catalog:
-    image: altinity/ice-rest-catalog:${ICE_REST_CATALOG_TAG:-latest}
-    pull_policy: ${ICE_REST_CATALOG_PULL_POLICY:-always}
+    image: altinity/ice-rest-catalog:latest
     restart: unless-stopped
     ports:
-      - '5001:5000' # iceberg/http
+      - '5001:5000'
     configs:
       - source: ice-rest-catalog-yaml
         target: /etc/ice/ice-rest-catalog.yaml
     volumes:
-      # for access to /var/lib/ice-rest-catalog/db.sqlite
       - ./data/docker-compose/ice-rest-catalog/var/lib/ice-rest-catalog:/var/lib/ice-rest-catalog
     depends_on:
       - rustfs-init
   clickhouse:
-    image: altinity/clickhouse-server:25.3.3.20186.altinityantalya-alpine
+    image: altinity/clickhouse-server:25.8.12.20747.altinityantalya-alpine
     restart: unless-stopped
     environment:
       CLICKHOUSE_SKIP_USER_SETUP: "1" # insecure
@@ -61,7 +59,6 @@ services:
       - source: clickhouse-init
         target: /docker-entrypoint-initdb.d/init-db.sh
     volumes:
-      # for access to clickhouse-logs
       - ./data/docker-compose/clickhouse/var/log/clickhouse-server:/var/log/clickhouse-server
     depends_on:
       - ice-rest-catalog
@@ -76,6 +73,23 @@ services:
       - ice-rest-catalog
     profiles:
       - tools
+  otlp2parquet:
+    image: ghcr.io/smithclay/otlp2parquet:latest
+    restart: unless-stopped
+    ports:
+      - '4318:4318' # OTLP/HTTP
+    environment:
+      OTLP2PARQUET_STORAGE_BACKEND: s3
+      OTLP2PARQUET_S3_BUCKET: bucket1
+      OTLP2PARQUET_S3_ENDPOINT: http://rustfs:9000
+      OTLP2PARQUET_S3_REGION: us-east-1
+      OTLP2PARQUET_CATALOG_MODE: iceberg
+      OTLP2PARQUET_ICEBERG_REST_URI: http://ice-rest-catalog:5000
+      OTLP2PARQUET_ICEBERG_WAREHOUSE: s3://bucket1
+      AWS_ACCESS_KEY_ID: rustfsuser
+      AWS_SECRET_ACCESS_KEY: rustfspassword
+    depends_on:
+      - ice-rest-catalog
 configs:
   clickhouse-init:
     content: |
@@ -88,7 +102,6 @@ configs:
         CREATE DATABASE ice
           ENGINE = DataLakeCatalog('http://ice-rest-catalog:5000')
           SETTINGS catalog_type = 'rest',
-            auth_header = 'Authorization: Bearer foo',
             storage_endpoint = 'http://rustfs:9000',
             warehouse = 's3://bucket1';
       "
@@ -101,13 +114,14 @@ configs:
         pathStyleAccess: true
         accessKeyID: rustfsuser
         secretAccessKey: rustfspassword
-        region: rustfs
-      bearerTokens:
-        - value: foo
+        region: us-east-1
+      anonymousAccess:
+        enabled: true
+        accessConfig:
+          readOnly: false
   ice-yaml:
     content: |
       uri: http://ice-rest-catalog:5000
-      bearerToken: foo
       s3:
         endpoint: http://rustfs:9000
         accessKeyID: rustfsuser
