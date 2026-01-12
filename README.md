@@ -5,9 +5,9 @@ Ingest OpenTelemetry logs via OTLP/HTTP and query them with ClickHouse.
 ## Architecture
 
 ```
-OTLP/HTTP -> otlp2parquet -> S3 (rustfs) -> ClickHouse
-                         |
-                   ice-rest-catalog (Iceberg)
+OTLP/HTTP -> otlp2parquet -> S3 (rustfs) -> ice CLI -> ClickHouse
+                                    |            |
+                              parquet files  ice-rest-catalog (Iceberg)
 ```
 
 ## Quick Start
@@ -46,21 +46,55 @@ curl -X POST http://localhost:4318/v1/logs \
 
 Logs are batched and flushed every 10 seconds (or 200k rows / 128MB).
 
+## Register Parquet Files with Iceberg
+
+After logs are flushed (~10 seconds), register them with the Iceberg catalog using the ice CLI.
+
+### 1. Copy a parquet file locally (for schema inference)
+
+```bash
+# Find parquet files in the bucket
+docker run --rm --network=demo-otel-parquet-antalya_default --entrypoint="" minio/mc sh -c "
+mc alias set local http://rustfs:9000 rustfsuser rustfspassword >/dev/null 2>&1
+mc find local/bucket1/logs --name '*.parquet'
+"
+
+# Copy one locally
+docker run --rm --network=demo-otel-parquet-antalya_default --entrypoint="" -v /tmp:/tmp minio/mc sh -c "
+mc alias set local http://rustfs:9000 rustfsuser rustfspassword >/dev/null 2>&1
+mc cp local/bucket1/logs/my-app/year=2026/month=01/day=12/hour=16/<filename>.parquet /tmp/sample.parquet
+"
+```
+
+### 2. Create namespace and table
+
+```bash
+# Create namespace
+docker compose run --rm ice create-namespace otel
+
+# Create table and insert data in one step
+docker compose run --rm -v /tmp/sample.parquet:/app/sample.parquet ice insert -p otel.logs /app/sample.parquet
+```
+
+For additional parquet files, copy them locally and insert:
+```bash
+docker compose run --rm -v /tmp/sample1.parquet:/app/sample1.parquet -v /tmp/sample2.parquet:/app/sample2.parquet \
+  ice insert otel.logs /app/sample1.parquet /app/sample2.parquet
+```
+
 ## Query Logs
 
-Wait ~10 seconds for the batch to flush, then query:
+Query the Iceberg table from ClickHouse:
 
 ```bash
 # Using curl
-curl "http://localhost:8123/" --data-binary "SELECT * FROM otel_logs FORMAT Pretty"
+curl "http://localhost:8123/" --data-binary "SELECT * FROM ice.\`otel.logs\` FORMAT Pretty"
 
 # Using clickhouse client
-clickhouse client --query "SELECT ServiceName, SeverityText, Body, Timestamp FROM otel_logs"
+clickhouse client --query "SELECT ServiceName, SeverityText, Body, Timestamp FROM ice.\`otel.logs\`"
 ```
 
-`otel_logs` is a view set up to query the parquet files in the rustfs bucket.
-
-@TODO: Make this work with rest-ice-catalog
+The `ice` database is configured as a DataLakeCatalog pointing to ice-rest-catalog.
 
 ### Available Columns
 
@@ -82,18 +116,18 @@ clickhouse client --query "SELECT ServiceName, SeverityText, Body, Timestamp FRO
 ```sql
 -- Recent logs
 SELECT Timestamp, ServiceName, SeverityText, Body
-FROM otel_logs
+FROM ice.`otel.logs`
 ORDER BY Timestamp DESC
 LIMIT 10;
 
 -- Error count by service
 SELECT ServiceName, count() as errors
-FROM otel_logs
+FROM ice.`otel.logs`
 WHERE SeverityText IN ('ERROR', 'FATAL')
 GROUP BY ServiceName;
 
 -- Logs for a specific trace
-SELECT * FROM otel_logs WHERE TraceId = 'abc123';
+SELECT * FROM ice.`otel.logs` WHERE TraceId = 'abc123';
 ```
 
 ## Configuration
