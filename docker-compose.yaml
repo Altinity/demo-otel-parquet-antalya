@@ -107,6 +107,20 @@ services:
     depends_on:
       - ice-rest-catalog
       - otlp2parquet
+  grafana:
+    image: grafana/grafana:11.4.0
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      GF_INSTALL_PLUGINS: vertamedia-clickhouse-datasource
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - clickhouse
 configs:
   clickhouse-init:
     content: |
@@ -149,3 +163,4 @@ configs:
 volumes:
   rustfs:
   ice-rest-catalog-data:
+  grafana-data:
