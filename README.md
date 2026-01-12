@@ -21,6 +21,7 @@ Services:
 - **ClickHouse**: `localhost:8123`
 - **rustfs console**: `localhost:9001` - S3 web UI (rustfsuser/rustfspassword)
 - **ice-rest-catalog**: `localhost:5001` - Iceberg REST catalog
+- **log-sync**: Automatically syncs parquet files to Iceberg (every 60s by default)
 
 ## Send Test Logs
 
@@ -46,40 +47,29 @@ curl -X POST http://localhost:4318/v1/logs \
 
 Logs are batched and flushed every 10 seconds (or 200k rows / 128MB).
 
-## Register Parquet Files with Iceberg
+## Automatic Sync
 
-After logs are flushed (~10 seconds), register them with the Iceberg catalog using the ice CLI.
+The **log-sync** service automatically registers new parquet files with Iceberg every 60 seconds (configurable via `LOG_SYNC_INTERVAL` env var).
 
-### 1. Copy a parquet file locally (for schema inference)
+Just send logs and query - no manual registration needed!
+
+### Manual Registration (Optional)
+
+If you need to manually register files:
 
 ```bash
-# Find parquet files in the bucket
-docker run --rm --network=demo-otel-parquet-antalya_default --entrypoint="" minio/mc sh -c "
+# List parquet files
+docker run --rm --network demo-otel-parquet-antalya_default --entrypoint="" minio/mc sh -c "
 mc alias set local http://rustfs:9000 rustfsuser rustfspassword >/dev/null 2>&1
 mc find local/bucket1/logs --name '*.parquet'
 "
 
-# Copy one locally
-docker run --rm --network=demo-otel-parquet-antalya_default --entrypoint="" -v /tmp:/tmp minio/mc sh -c "
-mc alias set local http://rustfs:9000 rustfsuser rustfspassword >/dev/null 2>&1
-mc cp local/bucket1/logs/my-app/year=2026/month=01/day=12/hour=16/<filename>.parquet /tmp/sample.parquet
-"
-```
-
-### 2. Create namespace and table
-
-```bash
-# Create namespace
+# Create namespace (first time only)
 docker compose run --rm ice create-namespace otel
 
-# Create table and insert data in one step
-docker compose run --rm -v /tmp/sample.parquet:/app/sample.parquet ice insert -p otel.logs /app/sample.parquet
-```
-
-For additional parquet files, copy them locally and insert:
-```bash
-docker compose run --rm -v /tmp/sample1.parquet:/app/sample1.parquet -v /tmp/sample2.parquet:/app/sample2.parquet \
-  ice insert otel.logs /app/sample1.parquet /app/sample2.parquet
+# Insert files using HTTP URLs (use http://rustfs:9000/bucket1/... instead of s3://bucket1/...)
+docker compose run --rm ice insert -p --skip-duplicates otel.logs \
+  "http://rustfs:9000/bucket1/logs/my-app/year=2026/month=01/day=12/hour=16/file.parquet"
 ```
 
 ## Query Logs

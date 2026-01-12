@@ -66,18 +66,10 @@ curl -X POST http://localhost:4318/v1/logs \
   }'
 ```
 
-### 2. Register parquet files with Iceberg (after ~10s flush)
-```bash
-# Copy parquet file locally (ice CLI can't access S3 directly for schema inference)
-docker run --rm --network=demo-otel-parquet-antalya_default --entrypoint="" -v /tmp:/tmp minio/mc sh -c "
-mc alias set local http://rustfs:9000 rustfsuser rustfspassword >/dev/null 2>&1
-mc find local/bucket1/logs --name '*.parquet' | head -1 | xargs -I{} mc cp {} /tmp/sample.parquet
-"
+### 2. Wait for auto-sync (or query immediately after ~70s)
 
-# Create namespace and insert (creates table on first insert with -p flag)
-docker compose run --rm ice create-namespace otel
-docker compose run --rm -v /tmp/sample.parquet:/app/sample.parquet ice insert -p otel.logs /app/sample.parquet
-```
+The **log-sync** service automatically syncs parquet files to Iceberg every 60 seconds.
+No manual registration needed!
 
 ### 3. Query logs
 ```bash

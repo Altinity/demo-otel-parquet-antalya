@@ -90,6 +90,23 @@ services:
       AWS_SECRET_ACCESS_KEY: rustfspassword
     depends_on:
       - ice-rest-catalog
+  log-sync:
+    build: ./scripts
+    restart: unless-stopped
+    environment:
+      RUSTFS_ENDPOINT: http://rustfs:9000
+      RUSTFS_BUCKET: bucket1
+      RUSTFS_ACCESS_KEY: rustfsuser
+      RUSTFS_SECRET_KEY: rustfspassword
+      ICE_CATALOG_URI: http://ice-rest-catalog:5000
+      TABLE_NAME: otel.logs
+      SYNC_INTERVAL: ${LOG_SYNC_INTERVAL:-60}
+    configs:
+      - source: ice-yaml
+        target: /app/.ice.yaml
+    depends_on:
+      - ice-rest-catalog
+      - otlp2parquet
 configs:
   clickhouse-init:
     content: |
@@ -125,8 +142,10 @@ configs:
       uri: http://ice-rest-catalog:5000
       s3:
         endpoint: http://rustfs:9000
+        pathStyleAccess: true
         accessKeyID: rustfsuser
         secretAccessKey: rustfspassword
+        region: us-east-1
 volumes:
   rustfs:
   ice-rest-catalog-data:
