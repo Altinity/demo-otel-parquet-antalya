@@ -62,10 +62,10 @@ sync_files() {
     # Ensure namespace exists before insert
     ensure_namespace
 
-    # Convert to HTTP URLs and insert
-    HTTP_URLS=$(echo "$NEW_FILES" | tr ' ' '\n' | sed "s|rustfs/$RUSTFS_BUCKET/|$RUSTFS_ENDPOINT/$RUSTFS_BUCKET/|g" | tr '\n' ' ')
+    # Convert to S3 URLs and insert
+    S3_URLS=$(echo "$NEW_FILES" | tr ' ' '\n' | sed "s|rustfs/$RUSTFS_BUCKET/|s3://$RUSTFS_BUCKET/|g" | tr '\n' ' ')
 
-    if ice insert -p "$TABLE_NAME" $HTTP_URLS 2>&1 | grep -v "^$"; then
+    if ice insert -p --use-vended-credentials "$TABLE_NAME" $S3_URLS 2>&1 | grep -v "^$"; then
         # Mark files as processed on success
         echo "$NEW_FILES" | tr ' ' '\n' >> "$STATE_FILE"
         echo "[$(date -Iseconds)] Sync complete - $FILE_COUNT file(s) added"

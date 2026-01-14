@@ -1,9 +1,9 @@
 FROM altinity/ice:latest AS ice
 
-FROM alpine:3.19
+FROM eclipse-temurin:21-jre
 
 # Install dependencies
-RUN apk add --no-cache openjdk21-jre-headless curl
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
 # Copy ice jar from ice image
 COPY --from=ice /usr/local/bin/ice /app/ice.jar

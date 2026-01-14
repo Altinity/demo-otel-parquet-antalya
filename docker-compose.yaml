@@ -83,13 +83,10 @@ services:
       OTLP2PARQUET_S3_BUCKET: bucket1
       OTLP2PARQUET_S3_ENDPOINT: http://rustfs:9000
       OTLP2PARQUET_S3_REGION: us-east-1
-      OTLP2PARQUET_CATALOG_MODE: iceberg
-      OTLP2PARQUET_ICEBERG_REST_URI: http://ice-rest-catalog:5000
-      OTLP2PARQUET_ICEBERG_WAREHOUSE: s3://bucket1
       AWS_ACCESS_KEY_ID: rustfsuser
       AWS_SECRET_ACCESS_KEY: rustfspassword
     depends_on:
-      - ice-rest-catalog
+      - rustfs-init
   log-sync:
     build: ./scripts
     restart: unless-stopped
