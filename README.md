@@ -10,7 +10,9 @@ OTLP/HTTP -> otlp2parquet -> S3 (rustfs) -> ice CLI -> ClickHouse
                               parquet files  ice-rest-catalog (Iceberg)
 ```
 
-## Quick Start
+# Quick Start
+
+## Step 1: Start Docker
 
 ```bash
 docker compose up -d
@@ -23,7 +25,9 @@ Services:
 - **ice-rest-catalog**: `localhost:5001` - Iceberg REST catalog
 - **log-sync**: Automatically syncs parquet files to Iceberg (every 60s by default)
 
-## Send Test Logs
+## Step 2: Send Test Logs
+
+Later, we can hook up OpenTelemetry SDKs or Collectors, but for now let's send some test logs to verify our set-up. Run this command 2-3 times:
 
 ```bash
 curl -X POST http://localhost:4318/v1/logs \
@@ -45,48 +49,32 @@ curl -X POST http://localhost:4318/v1/logs \
   }'
 ```
 
-Logs are batched and flushed every 10 seconds (or 200k rows / 128MB).
-
 ## Automatic Sync
 
 The **log-sync** service automatically registers new parquet files with Iceberg every 60 seconds (configurable via `LOG_SYNC_INTERVAL` env var).
 
 Just send logs and query - no manual registration needed!
 
-### Manual Registration (Optional)
+Logs are batched and flushed every 10 seconds (or 200k rows / 128MB), so they may take a moment to appear.
 
-If you need to manually register files:
+## View Grafana Dashboard
 
-```bash
-# List parquet files
-docker run --rm --network demo-otel-parquet-antalya_default --entrypoint="" minio/mc sh -c "
-mc alias set local http://rustfs:9000 rustfsuser rustfspassword >/dev/null 2>&1
-mc find local/bucket1/logs --name '*.parquet'
-"
-
-# Create namespace (first time only)
-docker compose run --rm ice create-namespace otel
-
-# Insert files using HTTP URLs (use http://rustfs:9000/bucket1/... instead of s3://bucket1/...)
-docker compose run --rm ice insert -p --skip-duplicates otel.logs \
-  "http://rustfs:9000/bucket1/logs/my-app/year=2026/month=01/day=12/hour=16/file.parquet"
-```
+There is a [Grafana dashboard](http://localhost:3000) with some basic panels for viewing logs (available at `localhost:3000`)
 
 ## Query Logs
 
-Query the Iceberg table from ClickHouse:
+Alternatively, you can query the Iceberg tables directly from ClickHouse:
 
-```bash
-# Using curl
-curl "http://localhost:8123/" --data-binary "SELECT * FROM ice.\`otel.logs\` FORMAT Pretty"
-
+```
 # Using clickhouse client
 clickhouse client --query "SELECT ServiceName, SeverityText, Body, Timestamp FROM ice.\`otel.logs\`"
 ```
 
 The `ice` database is configured as a DataLakeCatalog pointing to ice-rest-catalog.
 
-### Available Columns
+### Schema
+
+The schema follows the OpenTelemetry Collector Exporter for ClickHouse. For example, `otel.logs`:
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -101,7 +89,7 @@ The `ice` database is configured as a DataLakeCatalog pointing to ice-rest-catal
 | LogAttributes | Map(String, String) | Log attributes |
 | ScopeName | String | Instrumentation scope name |
 
-### Example Queries
+## Example Queries
 
 ```sql
 -- Recent logs
@@ -110,17 +98,15 @@ FROM ice.`otel.logs`
 ORDER BY Timestamp DESC
 LIMIT 10;
 
--- Error count by service
-SELECT ServiceName, count() as errors
+-- Severity count by service
+SELECT ServiceName, SeverityText, count()
 FROM ice.`otel.logs`
-WHERE SeverityText IN ('ERROR', 'FATAL')
-GROUP BY ServiceName;
-
--- Logs for a specific trace
-SELECT * FROM ice.`otel.logs` WHERE TraceId = 'abc123';
+GROUP BY ServiceName, SeverityText;
 ```
 
-## Configuration
+## Sending Telemetry to the OTLP Endpoints
+
+The otlp2parquet service exposes OTLP-compatible endpoints that can talk with any OTLP-compatible source. You can export telemetry from an application or agent, or you can use something like [otelgen](https://github.com/krzko/otelgen) to generate more test telemetry to experiment with.
 
 ### OpenTelemetry SDK
 
@@ -147,7 +133,28 @@ service:
       exporters: [otlphttp]
 ```
 
+## Manual Registration of Logs (Optional)
+
+You shouldn't need to do this, but if you want to manually register files:
+
+```bash
+# List parquet files
+docker run --rm --network demo-otel-parquet-antalya_default --entrypoint="" minio/mc sh -c "
+mc alias set local http://rustfs:9000 rustfsuser rustfspassword >/dev/null 2>&1
+mc find local/bucket1/logs --name '*.parquet'
+"
+
+# Create namespace (first time only)
+docker compose run --rm ice create-namespace otel
+
+# Insert files using HTTP URLs (use http://rustfs:9000/bucket1/... instead of s3://bucket1/...)
+docker compose run --rm ice insert -p --skip-duplicates otel.logs \
+  "http://rustfs:9000/bucket1/logs/my-app/year=2026/month=01/day=12/hour=16/file.parquet"
+```
+
 ## Cleanup
+
+Some data is stored locally in `./data`:
 
 ```bash
 # Stop services
