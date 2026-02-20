@@ -1,6 +1,6 @@
 services:
   rustfs:
-    image: rustfs/rustfs:latest
+    image: rustfs/rustfs:1.0.0-alpha.83
     restart: unless-stopped
     environment:
       RUSTFS_VOLUMES: /data
@@ -20,7 +20,7 @@ services:
       timeout: 5s
       retries: 5
   rustfs-init:
-    image: minio/mc:latest
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
     restart: on-failure  # run once and exit
     entrypoint: >
       /bin/sh -c "
@@ -36,7 +36,7 @@ services:
       rustfs:
         condition: service_healthy
   ice-rest-catalog:
-    image: altinity/ice-rest-catalog:latest
+    image: altinity/ice-rest-catalog:0.12.0
     restart: unless-stopped
     ports:
       - '5001:5000'
@@ -63,7 +63,7 @@ services:
     depends_on:
       - ice-rest-catalog
   ice:
-    image: altinity/ice:${ICE_TAG:-latest}
+    image: altinity/ice:${ICE_TAG:-0.12.0}
     pull_policy: ${ICE_PULL_POLICY:-always}
     configs:
       - source: ice-yaml
@@ -74,7 +74,7 @@ services:
     profiles:
       - tools
   otlp2parquet:
-    image: ghcr.io/smithclay/otlp2parquet:latest
+    image: ghcr.io/smithclay/otlp2parquet:0.9.0
     restart: unless-stopped
     ports:
       - '4318:4318' # OTLP/HTTP

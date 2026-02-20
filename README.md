@@ -8,9 +8,11 @@ Ingest OpenTelemetry logs via OTLP/HTTP and query them with ClickHouse.
 flowchart LR
     OTLP[OTLP/HTTP] --> O2P[otlp2parquet]
     O2P --> S3[(S3<br/>rustfs)]
-    S3 --> |parquet files| ICE[ice CLI]
-    ICE --> CAT[ice-rest-catalog<br/>Iceberg]
-    CAT --> CH[(ClickHouse)]
+    SYNC[log-sync] <--> S3
+    CAT[ice-rest-catalog] <--> S3
+    CH[(ClickHouse)] <--> S3
+    SYNC <--> CAT
+    CH <--> CAT
 ```
 
 # Quick Start
