@@ -4,10 +4,13 @@ Ingest OpenTelemetry logs via OTLP/HTTP and query them with ClickHouse.
 
 ## Architecture
 
-```
-OTLP/HTTP -> otlp2parquet -> S3 (rustfs) -> ice CLI -> ClickHouse
-                                    |            |
-                              parquet files  ice-rest-catalog (Iceberg)
+```mermaid
+flowchart LR
+    OTLP[OTLP/HTTP] --> O2P[otlp2parquet]
+    O2P --> S3[(S3<br/>rustfs)]
+    S3 --> |parquet files| ICE[ice CLI]
+    ICE --> CAT[ice-rest-catalog<br/>Iceberg]
+    CAT --> CH[(ClickHouse)]
 ```
 
 # Quick Start
@@ -164,3 +167,7 @@ docker compose down
 docker compose down -v
 rm -rf ./data
 ```
+
+## Credits
+
+- [otlp2parquet](https://github.com/smithclay/otlp2parquet) many thanks to [@smithclay](https://github.com/smithclay) for creating the OTLP to Parquet converter used in this project.
