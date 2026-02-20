@@ -172,4 +172,32 @@ rm -rf ./data
 
 ## Credits
 
-- [otlp2parquet](https://github.com/smithclay/otlp2parquet) many thanks to [@smithclay](https://github.com/smithclay) for creating the OTLP to Parquet converter used in this project.
+- [otlp2parquet](https://github.com/smithclay/otlp2parquet): many thanks to [@smithclay](https://github.com/smithclay) for creating the OTLP to Parquet converter used in this project.
+
+## Community
+
+This project is a community effort sponsored by Altinity. The best way to reach us or ask questions is:
+
+* Join the [Altinity Slack](https://altinity.com/slack) - Chat with the developers and other users
+* Log an [issue on GitHub](https://github.com/Altinity/clickhouse-parquet-logs/issues) - Ask questions, log bugs and feature requests
+
+## Contributing
+
+We welcome contributions from the community! If you encounter issues or have improvements to suggest, please log an issue or submit a PR.
+
+## Legal
+
+All code, unless specified otherwise, is licensed under the [Apache-2.0](LICENSE) license.
+Copyright (c) 2026 Altinity, Inc.
+Altinity.Cloud®, and Altinity Stable® are registered trademarks of Altinity, Inc. ClickHouse® is a registered trademark of ClickHouse, Inc.; Altinity is not affiliated with or associated with ClickHouse, Inc. Kubernetes, MySQL, and PostgreSQL are trademarks and property of their respective owners.
+
+## Commercial Support
+
+This project is a demonstration meant to showcase ClickHouse's capabilities. Altinity offers a range of services related to ClickHouse and analytic applications:
+
+- [Official website](https://altinity.com/) - Get a high level overview of Altinity and our offerings.
+- [Altinity.Cloud](https://altinity.com/cloud-database/) - Run ClickHouse in our cloud or yours.
+- [Altinity Support](https://altinity.com/support/) - Get Enterprise-class support for ClickHouse.
+- [Slack](https://altinity.com/slack) - Talk directly with ClickHouse users and Altinity devs.
+- [Contact us](https://hubs.la/Q020sH3Z0) - Contact Altinity with your questions or issues.
+- [Free consultation](https://hubs.la/Q020sHkv0) - Get a free consultation with a ClickHouse expert today.
