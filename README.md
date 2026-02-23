@@ -72,41 +72,46 @@ Alternatively, you can query the Iceberg tables directly from ClickHouse:
 
 ```
 # Using clickhouse client
-clickhouse client --query "SELECT ServiceName, SeverityText, Body, Timestamp FROM ice.\`otel.logs\`"
+clickhouse client --query "SELECT service_name, severity_text, body, timestamp FROM ice.\`otel.logs\`"
 ```
 
 The `ice` database is configured as a DataLakeCatalog pointing to ice-rest-catalog.
 
 ### Schema
 
-The schema follows the OpenTelemetry Collector Exporter for ClickHouse. For example, `otel.logs`:
+The schema follows the OpenTelemetry Collector Exporter for ClickHouse (snake_case). For example, `otel.logs`:
 
 | Column | Type | Description |
 |--------|------|-------------|
-| Timestamp | DateTime64(6) | Log timestamp |
-| ServiceName | String | service.name resource attribute |
-| SeverityText | String | Log level (INFO, WARN, ERROR, etc.) |
-| SeverityNumber | Int32 | Numeric severity |
-| Body | String | Log message |
-| TraceId | String | Trace ID (if present) |
-| SpanId | String | Span ID (if present) |
-| ResourceAttributes | Map(String, String) | Resource attributes |
-| LogAttributes | Map(String, String) | Log attributes |
-| ScopeName | String | Instrumentation scope name |
+| timestamp | DateTime64(6) | Log timestamp |
+| observed_timestamp | Int64 | Observed timestamp |
+| service_name | String | service.name resource attribute |
+| service_namespace | Nullable(String) | service.namespace resource attribute |
+| service_instance_id | Nullable(String) | service.instance.id resource attribute |
+| severity_text | String | Log level (INFO, WARN, ERROR, etc.) |
+| severity_number | Int32 | Numeric severity |
+| body | Nullable(String) | Log message |
+| trace_id | Nullable(String) | Trace ID (if present) |
+| span_id | Nullable(String) | Span ID (if present) |
+| resource_attributes | Nullable(String) | Resource attributes (JSON) |
+| log_attributes | Nullable(String) | Log attributes (JSON) |
+| scope_name | Nullable(String) | Instrumentation scope name |
+| scope_version | Nullable(String) | Instrumentation scope version |
+| scope_attributes | Nullable(String) | Scope attributes (JSON) |
 
 ## Example Queries
 
 ```sql
 -- Recent logs
-SELECT Timestamp, ServiceName, SeverityText, Body
+SELECT timestamp, service_name, severity_text, body
 FROM ice.`otel.logs`
-ORDER BY Timestamp DESC
+ORDER BY timestamp DESC
 LIMIT 10;
 
 -- Severity count by service
-SELECT ServiceName, SeverityText, count()
+SELECT service_name, severity_text, count()
 FROM ice.`otel.logs`
-GROUP BY ServiceName, SeverityText;
+GROUP BY service_name, severity_text;
 ```
 
 ## Sending Telemetry to the OTLP Endpoints
