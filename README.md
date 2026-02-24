@@ -6,7 +6,8 @@ Ingest OpenTelemetry logs via OTLP/HTTP and query them with ClickHouse.
 
 ```mermaid
 flowchart LR
-    OTLP[OTLP/HTTP] --> O2P[otlp2parquet]
+    OTLP[OTLP/HTTP] --> OC[otel-collector]
+    OC --> O2P[otlp2parquet]
     O2P --> S3[(S3<br/>rustfs)]
     SYNC[log-sync] <--> S3
     CAT[ice-rest-catalog] <--> S3
@@ -183,7 +184,7 @@ rm -rf ./data
 
 ## Community
 
-This project is a demo created by Altinity to demonstrate [X]. If you have questions, you can join us on [Slack](https://altinity.com/slack) or log an [issue on GitHub](https://github.com/Altinity/clickhouse-parquet-logs/issues).
+This project is a demo created by Altinity to demonstrate using OpenTelemetry, ClickHouse, Iceberg, and Parquet for a scalable open-source observability data lakehouse. If you have questions, you can join us on [Slack](https://altinity.com/slack) or log an [issue on GitHub](https://github.com/Altinity/clickhouse-parquet-logs/issues).
 
 ## Contributing
 

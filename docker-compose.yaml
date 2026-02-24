@@ -76,8 +76,6 @@ services:
   otlp2parquet:
     image: ghcr.io/smithclay/otlp2parquet:0.9.0
     restart: unless-stopped
-    ports:
-      - '4318:4318' # OTLP/HTTP
     environment:
       OTLP2PARQUET_STORAGE_BACKEND: s3
       OTLP2PARQUET_S3_BUCKET: bucket1
@@ -85,8 +83,35 @@ services:
       OTLP2PARQUET_S3_REGION: us-east-1
       AWS_ACCESS_KEY_ID: rustfsuser
       AWS_SECRET_ACCESS_KEY: rustfspassword
+      # Batching settings
+      OTLP2PARQUET_BATCHING_ENABLED: "true"
+      OTLP2PARQUET_BATCH_MAX_ROWS: 200000
+      OTLP2PARQUET_BATCH_MAX_AGE_SECS: 30
     depends_on:
       - rustfs-init
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.123.0
+    restart: unless-stopped
+    ports:
+      - '4318:4318' # OTLP/HTTP
+    configs:
+      - source: otel-collector-yaml
+        target: /etc/otelcol-contrib/config.yaml
+    depends_on:
+      - otlp2parquet
+  otelgen:
+    image: ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:v0.123.0
+    restart: unless-stopped
+    command:
+      - logs
+      - --otlp-http
+      - --otlp-endpoint=otel-collector:4318
+      - --otlp-insecure
+      - --logs=100000000
+      - --rate=1000
+      - --workers=10
+    depends_on:
+      - otel-collector
   log-sync:
     build: ./scripts
     restart: unless-stopped
@@ -157,6 +182,28 @@ configs:
         accessKeyID: rustfsuser
         secretAccessKey: rustfspassword
         region: us-east-1
+  otel-collector-yaml:
+    content: |
+      receivers:
+        otlp:
+          protocols:
+            http:
+              endpoint: 0.0.0.0:4318
+      processors:
+        batch:
+          send_batch_size: 10000
+          timeout: 5s
+      exporters:
+        otlphttp:
+          endpoint: http://otlp2parquet:4318
+          tls:
+            insecure: true
+      service:
+        pipelines:
+          logs:
+            receivers: [otlp]
+            processors: [batch]
+            exporters: [otlphttp]
 volumes:
   rustfs:
   ice-rest-catalog-data:
