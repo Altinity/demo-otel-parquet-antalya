@@ -16,6 +16,11 @@ flowchart LR
     CH <--> CAT
 ```
 
+## Requirements
+
+- Docker and Docker Compose
+- Minimum 4GB RAM
+
 # Quick Start
 
 ## Step 1: Start Docker
@@ -25,8 +30,11 @@ docker compose up -d
 ```
 
 Services:
-- **otlp2parquet**: `localhost:4318` - OTLP/HTTP ingestion
+- **otel-collector**: `localhost:4318` - OTLP/HTTP ingestion (batches requests for efficient Parquet file sizes)
+- **otlp2parquet**: Converts OTLP to Parquet and writes to S3
+- **otelgen**: Generates test telemetry data (10k logs/sec)
 - **ClickHouse**: `localhost:8123`
+- **Grafana**: `localhost:3000` - Dashboard UI
 - **rustfs console**: `localhost:9001` - S3 web UI (rustfsuser/rustfspassword)
 - **ice-rest-catalog**: `localhost:5001` - Iceberg REST catalog
 - **log-sync**: Automatically syncs parquet files to Iceberg (every 60s by default)
